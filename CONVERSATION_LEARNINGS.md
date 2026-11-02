@@ -101,6 +101,10 @@
 * **Manifest Alignment:** Updated `manifest.xml` to point to `https://s47user.github.io/word-gemini-addin/` for all assets, taskpane URLs, and icons.
 * **Zero BAT Files / Zero Local Servers:** Deleted local launcher batch files. The add-in is now 100% cloud-hosted and fetched directly by Word over HTTPS, exactly like QuillBot.
 * **Registry Alignment:** Configured both `HKCU:\Software\Microsoft\Office\16.0\WEF\Developer` and `HKCU:\Software\Microsoft\Office\16.0\WEF\TrustedCatalogs` pointing to the cloud manifest.
+* **Trusted Catalogs UNC Invariant:** Word Trust Center strictly ignores local drive paths (e.g. `C:\...`) in `WEF\TrustedCatalogs`. It strictly requires a valid UNC path (e.g. `\\LAPTOP-9A17RGAH\C$\Users\LENOVO\OfficeAddins`).
+* **Ribbon Activation Lifecycle:** Sideloaded developer add-ins do not automatically populate on the Ribbon in cold blank Word sessions until:
+  1. The user activates it once via `Home -> Add-ins -> Shared Folder -> Gemini AI Word Assistant -> Add`, OR
+  2. A document containing the pre-bound `word/webextensions/webextension.xml` (`Gemini Word Assistant.docx` on Desktop) is opened, which binds the add-in to the Office runtime.
 
 ---
 
