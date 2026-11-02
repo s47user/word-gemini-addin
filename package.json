@@ -1,0 +1,23 @@
+{
+  "name": "word-gemini-addin",
+  "version": "1.0.0",
+  "description": "Microsoft Word Taskpane Add-in integrated with Google Gemini (gemini-3.8-flash)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@microsoft/office-js": "^1.1.99"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "@types/office-js": "^1.0.449",
+    "@vitejs/plugin-basic-ssl": "^1.2.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vitest": "^3.0.5"
+  }
+}
