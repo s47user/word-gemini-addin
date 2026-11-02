@@ -93,3 +93,25 @@
 * **Why QuillBot Needs No BAT File:** Inspected user's local WEF cache (`C:\Users\LENOVO\AppData\Local\Microsoft\Office\16.0\Wef\AppCommands\18.0\...\wa20000036818.0Worden-US`). QuillBot is an Office Store Web Add-in pulling directly from `https://word.quillbot.com/index.html`. Because its web files live 24/7 in the cloud with a public DigiCert SSL certificate, Word loads it automatically on startup without any local server running.
 * **Why the Local Gemini Add-in Needed a BAT File:** Our setup was running in local developer mode (`https://localhost:3000`). If no local web server is running on port 3000, Word cannot load the iframe.
 * **Solution to Make Gemini Exact Match to QuillBot:** Deploy the compiled `dist/` bundle to a free cloud host (GitHub Pages via `s47user.github.io/word-gemini-addin` or Vercel). Once the manifest points to that cloud URL, Word will load the Gemini tab automatically without ever running a `.bat` file or local server.
+
+### 10. Deployed to GitHub Pages Cloud (QuillBot Parity Achieved)
+* **Cloud Endpoint:** Deployed compiled bundle to GitHub Pages: `https://s47user.github.io/word-gemini-addin/index.html`.
+* **Repository:** `https://github.com/s47user/word-gemini-addin` (published and public).
+* **Live Health Check:** Verified via `curl` returning HTTP 200 with trusted public DigiCert SSL.
+* **Manifest Alignment:** Updated `manifest.xml` to point to `https://s47user.github.io/word-gemini-addin/` for all assets, taskpane URLs, and icons.
+* **Zero BAT Files / Zero Local Servers:** Deleted local launcher batch files. The add-in is now 100% cloud-hosted and fetched directly by Word over HTTPS, exactly like QuillBot.
+* **Registry Alignment:** Configured both `HKCU:\Software\Microsoft\Office\16.0\WEF\Developer` and `HKCU:\Software\Microsoft\Office\16.0\WEF\TrustedCatalogs` pointing to the cloud manifest.
+
+---
+
+### 11. Deep Research: Anti-AI-Slop Writing Forensics & Readability Integration
+* **Anti-Slop Linguistic Reality:** LLM text inherently suffers from low sentence length variance (burstiness stddev < 2.5) and excessive Latinate nominalizations (-tion, -ment), resulting in dense Flesch Reading Ease scores (< 30) that trigger AI detection heuristics.
+* **Empirical Validation:**
+  - Tested `verify_readability_metrics.js`: verified client-side Flesch-Kincaid Grade Level, Flesch Reading Ease, burstiness calculation, and slop word detection ("delve", "tapestry", "beacon", "testament", "pivotal", "holistic", "game-changer", "streamline", "seamless", "not merely").
+  - Tested `verify_diff.js`: verified client-side word-level LCS diff algorithm producing clean `<ins>` and `<del>` markup for QuillBot-style changes preview without external dependencies.
+* **Skill Integration:**
+  - `plain-english-simplifier`: Flesch Grade 6–8, active voice, de-nominalization, citation protection (`(Smith et al., 2021)`, `[1]`).
+  - `momo-shield-academic-guardian`: Zero-slop policy, banned word list, IEEE citation preservation.
+  - `ux-microcopy-craft`: Action-first verbs, 50% rule, blameless errors.
+  - `modern-human-ui`: Clean Word-native typography (Aptos / Segoe UI), 1px hairline borders, spring feedback.
+* **Prompt Fidelity Invariant:** Anti-slop constraints and tone guidelines are supplied exclusively via Gemini's top-level `systemInstruction` REST parameter, keeping the user's prompt text 100% unaltered.

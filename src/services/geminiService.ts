@@ -10,6 +10,9 @@ export const SUPPORTED_MODELS = [
 export interface GeminiConfig {
   apiKey: string;
   model: string;
+  antiSlopGuard?: 'strict' | 'moderate' | 'off';
+  preserveCitations?: boolean;
+  customSystemInstruction?: string;
 }
 
 export interface ChatMessage {
@@ -19,21 +22,36 @@ export interface ChatMessage {
 
 const STORAGE_KEY_API_KEY = 'gemini_word_api_key';
 const STORAGE_KEY_MODEL = 'gemini_word_model';
+const STORAGE_KEY_SLOP_GUARD = 'gemini_word_slop_guard';
+const STORAGE_KEY_PRESERVE_CITATIONS = 'gemini_word_preserve_citations';
+const STORAGE_KEY_CUSTOM_SYSTEM = 'gemini_word_custom_system';
 
 export function getStoredConfig(): GeminiConfig {
   let apiKey = '';
   let model = DEFAULT_MODEL;
+  let antiSlopGuard: 'strict' | 'moderate' | 'off' = 'strict';
+  let preserveCitations = true;
+  let customSystemInstruction = '';
 
   try {
     if (typeof localStorage !== 'undefined') {
       apiKey = localStorage.getItem(STORAGE_KEY_API_KEY) || '';
       model = localStorage.getItem(STORAGE_KEY_MODEL) || DEFAULT_MODEL;
+      const storedGuard = localStorage.getItem(STORAGE_KEY_SLOP_GUARD);
+      if (storedGuard === 'strict' || storedGuard === 'moderate' || storedGuard === 'off') {
+        antiSlopGuard = storedGuard;
+      }
+      const storedCitations = localStorage.getItem(STORAGE_KEY_PRESERVE_CITATIONS);
+      if (storedCitations !== null) {
+        preserveCitations = storedCitations === 'true';
+      }
+      customSystemInstruction = localStorage.getItem(STORAGE_KEY_CUSTOM_SYSTEM) || '';
     }
   } catch {
     // Sandboxed iframes
   }
 
-  return { apiKey, model };
+  return { apiKey, model, antiSlopGuard, preserveCitations, customSystemInstruction };
 }
 
 export function saveConfig(config: GeminiConfig): void {
@@ -41,10 +59,50 @@ export function saveConfig(config: GeminiConfig): void {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(STORAGE_KEY_API_KEY, config.apiKey.trim());
       localStorage.setItem(STORAGE_KEY_MODEL, config.model || DEFAULT_MODEL);
+      localStorage.setItem(STORAGE_KEY_SLOP_GUARD, config.antiSlopGuard || 'strict');
+      localStorage.setItem(STORAGE_KEY_PRESERVE_CITATIONS, String(config.preserveCitations !== false));
+      localStorage.setItem(STORAGE_KEY_CUSTOM_SYSTEM, config.customSystemInstruction || '');
     }
   } catch {
     // Sandboxed iframes
   }
+}
+
+/**
+ * Combines task-specific instructions with user-level anti-slop rules and citation protection.
+ */
+export function composeSystemInstruction(
+  baseInstruction?: string,
+  config?: Partial<GeminiConfig>
+): string | undefined {
+  const parts: string[] = [];
+
+  if (baseInstruction && baseInstruction.trim() !== '') {
+    parts.push(baseInstruction.trim());
+  }
+
+  const guard = config?.antiSlopGuard;
+  if (guard === 'strict') {
+    parts.push(
+      "Anti-AI-Slop Policy (Strict): You are strictly forbidden from using generic, hollow AI words: 'delve', 'tapestry', 'beacon', 'testament', 'pivotal', 'foster', 'holistic', 'game-changer', 'unleash', 'streamline', 'seamless', or 'not merely X, but Y'. State concrete facts, active verbs, and varied sentence lengths directly."
+    );
+  } else if (guard === 'moderate') {
+    parts.push(
+      "Tone Directive: Write cleanly and concisely. Avoid clichés like 'delve', 'tapestry', or 'pivotal'."
+    );
+  }
+
+  if (config?.preserveCitations === true) {
+    parts.push(
+      "Citation & Term Protection: Never rewrite, mangle, or delete academic citations (e.g., '(Smith et al., 2021)', '[1, 2]'), equations, or domain-specific terminology."
+    );
+  }
+
+  if (config?.customSystemInstruction && config.customSystemInstruction.trim() !== '') {
+    parts.push(config.customSystemInstruction.trim());
+  }
+
+  return parts.length > 0 ? parts.join('\n\n') : undefined;
 }
 
 function buildRequestBody(contentsInput: string | ChatMessage[], systemInstruction?: string): any {
@@ -86,7 +144,8 @@ export async function generateContent(
 
   const model = config.model || DEFAULT_MODEL;
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-  const requestBody = buildRequestBody(contentsInput, systemInstruction);
+  const resolvedSystem = composeSystemInstruction(systemInstruction, config);
+  const requestBody = buildRequestBody(contentsInput, resolvedSystem);
 
   let response: Response;
   try {
@@ -142,7 +201,8 @@ export async function streamGenerateContent(
 
   const model = config.model || DEFAULT_MODEL;
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`;
-  const requestBody = buildRequestBody(contentsInput, systemInstruction);
+  const resolvedSystem = composeSystemInstruction(systemInstruction, config);
+  const requestBody = buildRequestBody(contentsInput, resolvedSystem);
 
   let response: Response;
   try {
