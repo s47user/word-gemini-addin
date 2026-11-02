@@ -1,0 +1,7 @@
+# Gemini Word Add-in Project Rules
+
+1. **Up-to-Date API & Models:** Always use current, supported APIs, libraries, and models. Default to `gemini-3.8-flash` and `@google/genai`. Never use legacy or restricted models.
+2. **User Voice & Prompt Fidelity:** Do not summarize, alter, or edit the user's words or instructions. Send the exact text and preserve their authentic voice.
+3. **Proactive Skills & Research:** Do not wait for the user to invoke skills. Execute the necessary investigation, verification, and standards automatically.
+4. **Persistent Learnings & Antigravity Memory:** Maintain `CONVERSATION_LEARNINGS.md` with every decision, pattern, and finding, and sync into the `antigravity-memory` MCP knowledge base.
+5. **Reference Top Open Source Repositories:** Continuously incorporate best practices from proven repositories like `Kuingsmile/word-GPT-Plus` and `OfficeDev/Office-Addin-TaskPane-React`.
