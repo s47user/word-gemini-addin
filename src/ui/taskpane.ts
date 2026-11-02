@@ -1,18 +1,17 @@
 import {
-  generateContent,
+  streamGenerateContent,
   getStoredConfig,
   saveConfig,
   DEFAULT_MODEL,
-  SUPPORTED_MODELS
+  SUPPORTED_MODELS,
+  ChatMessage
 } from '../services/geminiService';
 import {
   getSelectedText,
-  replaceSelectedText,
-  insertTextAtCursor,
+  replaceSelectedMarkdown,
+  insertMarkdownAtCursor,
   isOfficeInitialized
 } from '../services/wordService';
-
-export { isOfficeInitialized };
 
 export interface ActionResult {
   success: boolean;
@@ -21,12 +20,24 @@ export interface ActionResult {
 }
 
 let lastGeneratedText = '';
+let chatHistory: ChatMessage[] = [];
+
+export function clearChatHistory(): void {
+  chatHistory = [];
+}
+
+export function getChatHistory(): ChatMessage[] {
+  return chatHistory;
+}
 
 /**
- * Executes a pre-configured quick action on selected document text.
+ * Executes a pre-configured quick action on selected document text with streaming.
  * CRITICAL RULE: The selected text is sent verbatim to preserve user voice.
  */
-export async function handleQuickAction(actionType: string): Promise<ActionResult> {
+export async function handleQuickAction(
+  actionType: string,
+  onChunk?: (accumulatedText: string) => void
+): Promise<ActionResult> {
   const selectedText = await getSelectedText();
   if (!selectedText || selectedText.trim() === '') {
     return {
@@ -36,8 +47,8 @@ export async function handleQuickAction(actionType: string): Promise<ActionResul
   }
 
   const systemInstructions: Record<string, string> = {
-    summarize: 'You are an executive assistant. Summarize the user\'s text clearly and concisely.',
-    polish: 'You are a professional editor. Polish and proofread the text for clarity, grammar, and flow while strictly preserving the author\'s original meaning.',
+    summarize: "You are an executive assistant. Summarize the user's text clearly and concisely using clean headings and bullet points.",
+    polish: "You are a professional editor. Polish and proofread the text for clarity, grammar, and flow while strictly preserving the author's original meaning.",
     tone_professional: 'Rewrite the text in a polished, executive, professional tone.',
     tone_concise: 'Make the text as concise as possible, eliminating filler while retaining all key substance.',
     expand: 'Expand on the key ideas presented in the text, providing constructive detail and structured elaboration.'
@@ -56,7 +67,14 @@ export async function handleQuickAction(actionType: string): Promise<ActionResul
 
   const config = getStoredConfig();
   try {
-    const response = await generateContent(config, prompt, systemInstruction);
+    const response = await streamGenerateContent(
+      config,
+      prompt,
+      (accum) => {
+        if (onChunk) onChunk(accum);
+      },
+      systemInstruction
+    );
     lastGeneratedText = response;
     return { success: true, text: response };
   } catch (err: any) {
@@ -65,10 +83,13 @@ export async function handleQuickAction(actionType: string): Promise<ActionResul
 }
 
 /**
- * Handles a custom freeform prompt typed by the user.
+ * Handles a custom freeform prompt typed by the user with multi-turn memory & streaming.
  * CRITICAL RULE: Transmits the user's prompt verbatim without alterations.
  */
-export async function handleCustomPrompt(userPrompt: string): Promise<ActionResult> {
+export async function handleCustomPrompt(
+  userPrompt: string,
+  onChunk?: (accumulatedText: string) => void
+): Promise<ActionResult> {
   if (!userPrompt || userPrompt.trim() === '') {
     return {
       success: false,
@@ -76,16 +97,32 @@ export async function handleCustomPrompt(userPrompt: string): Promise<ActionResu
     };
   }
 
+  // Append user message to history verbatim
+  chatHistory.push({
+    role: 'user',
+    parts: [{ text: userPrompt }]
+  });
+
   const config = getStoredConfig();
   try {
-    const response = await generateContent(
+    const response = await streamGenerateContent(
       config,
-      userPrompt, // Exact user prompt sent directly
-      'You are Gemini, a direct and helpful AI writing partner in Microsoft Word.'
+      chatHistory,
+      (accum) => {
+        if (onChunk) onChunk(accum);
+      },
+      'You are Gemini, a direct and helpful AI writing partner in Microsoft Word. Output clean markdown where appropriate.'
     );
+    // Append model reply to history
+    chatHistory.push({
+      role: 'model',
+      parts: [{ text: response }]
+    });
     lastGeneratedText = response;
     return { success: true, text: response };
   } catch (err: any) {
+    // Pop failed user turn
+    chatHistory.pop();
     return { success: false, message: err.message };
   }
 }
@@ -100,9 +137,14 @@ export function initializeTaskpaneUI(container: HTMLElement): void {
           <span>Gemini Assistant</span>
           <span class="gemini-badge">3.8 Flash</span>
         </div>
-        <button id="btn-open-settings" class="settings-btn" title="Settings" aria-label="Settings">
-          ⚙️
-        </button>
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <button id="btn-clear-chat" class="settings-btn" title="Clear Chat History" aria-label="Clear Chat History">
+            🗑️
+          </button>
+          <button id="btn-open-settings" class="settings-btn" title="Settings" aria-label="Settings">
+            ⚙️
+          </button>
+        </div>
       </div>
 
       <div id="status-banner" class="status-banner"></div>
@@ -118,7 +160,7 @@ export function initializeTaskpaneUI(container: HTMLElement): void {
       </div>
 
       <!-- Custom Prompt Box -->
-      <div class="section-title">Custom Instruction / Chat</div>
+      <div class="section-title">Custom Instruction / Chat (Multi-turn)</div>
       <div class="prompt-box">
         <textarea id="custom-prompt-input" placeholder="Type instructions or questions for Gemini..."></textarea>
         <button id="btn-send-prompt" class="send-btn">
@@ -131,8 +173,8 @@ export function initializeTaskpaneUI(container: HTMLElement): void {
         <div class="section-title">Response Preview</div>
         <div id="output-preview" class="output-card">Ready. Select text or ask Gemini a question.</div>
         <div class="output-actions">
-          <button id="btn-insert-cursor" class="btn-primary-action">Insert at Cursor</button>
-          <button id="btn-replace-selection" class="btn-secondary">Replace Selection</button>
+          <button id="btn-insert-cursor" class="btn-primary-action" title="Insert formatted HTML at cursor">Insert at Cursor</button>
+          <button id="btn-replace-selection" class="btn-secondary" title="Replace highlighted text with formatted HTML">Replace Selection</button>
           <button id="btn-copy-output" class="btn-secondary">📋 Copy</button>
         </div>
       </div>
@@ -167,6 +209,7 @@ export function initializeTaskpaneUI(container: HTMLElement): void {
   const outputPreview = container.querySelector('#output-preview') as HTMLElement;
   const promptInput = container.querySelector('#custom-prompt-input') as HTMLTextAreaElement;
   const sendBtn = container.querySelector('#btn-send-prompt') as HTMLButtonElement;
+  const clearChatBtn = container.querySelector('#btn-clear-chat') as HTMLButtonElement;
   const settingsModal = container.querySelector('#settings-modal') as HTMLElement;
   const openSettingsBtn = container.querySelector('#btn-open-settings') as HTMLButtonElement;
   const closeSettingsBtn = container.querySelector('#btn-close-settings') as HTMLButtonElement;
@@ -195,14 +238,23 @@ export function initializeTaskpaneUI(container: HTMLElement): void {
     showStatus('Please configure your Gemini API Key in Settings ⚙️ to begin.', 'info');
   }
 
-  // Quick action buttons
+  // Clear chat
+  clearChatBtn?.addEventListener('click', () => {
+    clearChatHistory();
+    outputPreview.textContent = 'Chat history cleared. Ready for new prompt.';
+    showStatus('Chat memory reset.', 'info');
+  });
+
+  // Quick action buttons with streaming
   const pills = container.querySelectorAll('.action-pill');
   pills.forEach(pill => {
     pill.addEventListener('click', async () => {
       hideStatus();
       const action = (pill as HTMLElement).dataset.action || '';
-      outputPreview.textContent = 'Generating with Gemini 3.8 Flash...';
-      const result = await handleQuickAction(action);
+      outputPreview.textContent = 'Streaming with Gemini 3.8 Flash...';
+      const result = await handleQuickAction(action, (accum) => {
+        outputPreview.textContent = accum;
+      });
       if (result.success && result.text) {
         outputPreview.textContent = result.text;
       } else {
@@ -212,7 +264,7 @@ export function initializeTaskpaneUI(container: HTMLElement): void {
     });
   });
 
-  // Custom prompt send
+  // Custom prompt send with streaming
   sendBtn?.addEventListener('click', async () => {
     hideStatus();
     const prompt = promptInput?.value || '';
@@ -222,7 +274,10 @@ export function initializeTaskpaneUI(container: HTMLElement): void {
     }
     outputPreview.textContent = 'Thinking...';
     sendBtn.disabled = true;
-    const result = await handleCustomPrompt(prompt);
+    promptInput.value = '';
+    const result = await handleCustomPrompt(prompt, (accum) => {
+      outputPreview.textContent = accum;
+    });
     sendBtn.disabled = false;
     if (result.success && result.text) {
       outputPreview.textContent = result.text;
@@ -232,15 +287,15 @@ export function initializeTaskpaneUI(container: HTMLElement): void {
     }
   });
 
-  // Insert actions
+  // Insert actions using native Word HTML markdown parsing
   container.querySelector('#btn-insert-cursor')?.addEventListener('click', async () => {
     if (!lastGeneratedText) {
       showStatus('No generated text to insert.', 'info');
       return;
     }
     try {
-      await insertTextAtCursor(lastGeneratedText);
-      showStatus('Inserted at cursor position.', 'success');
+      await insertMarkdownAtCursor(lastGeneratedText);
+      showStatus('Inserted formatted content at cursor.', 'success');
     } catch (err: any) {
       showStatus(err.message, 'error');
     }
@@ -252,8 +307,8 @@ export function initializeTaskpaneUI(container: HTMLElement): void {
       return;
     }
     try {
-      await replaceSelectedText(lastGeneratedText);
-      showStatus('Replaced selection.', 'success');
+      await replaceSelectedMarkdown(lastGeneratedText);
+      showStatus('Replaced selection with formatted content.', 'success');
     } catch (err: any) {
       showStatus(err.message, 'error');
     }
@@ -290,6 +345,8 @@ export function initializeTaskpaneUI(container: HTMLElement): void {
     showStatus('Settings saved successfully.', 'success');
   });
 }
+
+export { isOfficeInitialized };
 
 // Office initialization bootstrap
 if (typeof (globalThis as any).Office !== 'undefined') {

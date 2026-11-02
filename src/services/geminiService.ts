@@ -12,6 +12,11 @@ export interface GeminiConfig {
   model: string;
 }
 
+export interface ChatMessage {
+  role: 'user' | 'model';
+  parts: Array<{ text: string }>;
+}
+
 const STORAGE_KEY_API_KEY = 'gemini_word_api_key';
 const STORAGE_KEY_MODEL = 'gemini_word_model';
 
@@ -25,7 +30,7 @@ export function getStoredConfig(): GeminiConfig {
       model = localStorage.getItem(STORAGE_KEY_MODEL) || DEFAULT_MODEL;
     }
   } catch {
-    // Sandboxed iframes without storage permission fall back to defaults
+    // Sandboxed iframes
   }
 
   return { apiKey, model };
@@ -42,15 +47,37 @@ export function saveConfig(config: GeminiConfig): void {
   }
 }
 
+function buildRequestBody(contentsInput: string | ChatMessage[], systemInstruction?: string): any {
+  let contents: ChatMessage[];
+
+  if (typeof contentsInput === 'string') {
+    contents = [
+      {
+        role: 'user',
+        parts: [{ text: contentsInput }]
+      }
+    ];
+  } else {
+    contents = contentsInput;
+  }
+
+  const requestBody: any = { contents };
+
+  if (systemInstruction && systemInstruction.trim() !== '') {
+    requestBody.systemInstruction = {
+      parts: [{ text: systemInstruction }]
+    };
+  }
+
+  return requestBody;
+}
+
 /**
- * Calls the Google Gemini REST API.
- * CRITICAL RULE: The prompt argument must NEVER be edited, trimmed destructively,
- * or summarized. It must be passed verbatim to preserve user voice and instructions.
- * Security: Uses the official x-goog-api-key header instead of a query parameter.
+ * Standard non-streaming Gemini call.
  */
 export async function generateContent(
   config: GeminiConfig,
-  prompt: string,
+  contentsInput: string | ChatMessage[],
   systemInstruction?: string
 ): Promise<string> {
   if (!config.apiKey || config.apiKey.trim() === '') {
@@ -59,29 +86,7 @@ export async function generateContent(
 
   const model = config.model || DEFAULT_MODEL;
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-
-  const requestBody: any = {
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          {
-            text: prompt // Exact user words passed directly
-          }
-        ]
-      }
-    ]
-  };
-
-  if (systemInstruction && systemInstruction.trim() !== '') {
-    requestBody.systemInstruction = {
-      parts: [
-        {
-          text: systemInstruction
-        }
-      ]
-    };
-  }
+  const requestBody = buildRequestBody(contentsInput, systemInstruction);
 
   let response: Response;
   try {
@@ -120,4 +125,86 @@ export async function generateContent(
   }
 
   return textOutput;
+}
+
+/**
+ * Streaming Gemini call via SSE (Server-Sent Events) with real-time typewriter feedback.
+ */
+export async function streamGenerateContent(
+  config: GeminiConfig,
+  contentsInput: string | ChatMessage[],
+  onChunk: (accumulatedText: string, chunk: string) => void,
+  systemInstruction?: string
+): Promise<string> {
+  if (!config.apiKey || config.apiKey.trim() === '') {
+    throw new Error('Gemini API key is missing. Please set your API key in the add-in settings.');
+  }
+
+  const model = config.model || DEFAULT_MODEL;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`;
+  const requestBody = buildRequestBody(contentsInput, systemInstruction);
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': config.apiKey.trim()
+      },
+      body: JSON.stringify(requestBody)
+    });
+  } catch (err: any) {
+    throw new Error(`Network error connecting to Gemini API: ${err.message || 'Check your internet connection.'}`);
+  }
+
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Invalid API key (401 Unauthorized). Please check your key in settings.');
+    }
+    if (response.status === 429) {
+      throw new Error('Rate limit or quota exceeded (429). Please wait a moment or check your API quotas.');
+    }
+    const errText = await response.text();
+    throw new Error(`Gemini API error (${response.status} ${response.statusText}): ${errText}`);
+  }
+
+  if (!response.body) {
+    throw new Error('Readable stream not supported or empty body.');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let accumulated = '';
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith('data:')) continue;
+
+      const jsonStr = trimmed.slice(5).trim();
+      if (!jsonStr) continue;
+
+      try {
+        const parsed = JSON.parse(jsonStr);
+        const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (chunkText) {
+          accumulated += chunkText;
+          onChunk(accumulated, chunkText);
+        }
+      } catch {
+        // Skip unparseable heartbeat or malformed SSE lines
+      }
+    }
+  }
+
+  return accumulated;
 }

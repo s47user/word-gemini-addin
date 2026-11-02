@@ -1,19 +1,37 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as geminiService from '../src/services/geminiService';
 import * as wordService from '../src/services/wordService';
-import { handleQuickAction, handleCustomPrompt } from '../src/ui/taskpane';
+import { handleQuickAction, handleCustomPrompt, clearChatHistory } from '../src/ui/taskpane';
 
 describe('End-to-End Simulation: Full Word Add-in Flow', () => {
   let docSelectionText = '';
-  let docInsertedText = '';
-  let lastReplacedText = '';
+  let docInsertedHtml = '';
+  let lastReplacedHtml = '';
   const mockStorage: Record<string, string> = {};
+
+  function createStreamResponse(textChunks: string[]) {
+    let index = 0;
+    const reader = {
+      read: vi.fn(async () => {
+        if (index < textChunks.length) {
+          const sseLine = `data: {"candidates":[{"content":{"parts":[{"text":${JSON.stringify(textChunks[index++])}}]}}]}\n\n`;
+          return { done: false, value: new TextEncoder().encode(sseLine) };
+        }
+        return { done: true, value: undefined };
+      })
+    };
+    return {
+      ok: true,
+      body: { getReader: () => reader }
+    };
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
+    clearChatHistory();
     docSelectionText = 'The quarterly revenue exceeded our targets by 15%.';
-    docInsertedText = '';
-    lastReplacedText = '';
+    docInsertedHtml = '';
+    lastReplacedHtml = '';
 
     for (const k in mockStorage) delete mockStorage[k];
 
@@ -39,83 +57,58 @@ describe('End-to-End Simulation: Full Word Add-in Flow', () => {
 
     // Mock Word operations
     vi.spyOn(wordService, 'getSelectedText').mockImplementation(async () => docSelectionText);
-    vi.spyOn(wordService, 'replaceSelectedText').mockImplementation(async (text) => {
-      lastReplacedText = text;
+    vi.spyOn(wordService, 'replaceSelectedMarkdown').mockImplementation(async (text) => {
+      lastReplacedHtml = text;
       docSelectionText = text;
     });
-    vi.spyOn(wordService, 'insertTextAtCursor').mockImplementation(async (text) => {
-      docInsertedText = text;
+    vi.spyOn(wordService, 'insertMarkdownAtCursor').mockImplementation(async (text) => {
+      docInsertedHtml = text;
     });
   });
 
-  it('runs complete Quick Action cycle: Select -> Summarize with 3.8 Flash -> Replace', async () => {
+  it('runs complete Quick Action cycle: Select -> Stream Summarize with 3.8 Flash -> Replace as Markdown', async () => {
     let capturedUrl = '';
     let capturedBody: any = null;
-
     let capturedHeaders: any = null;
 
     globalThis.fetch = vi.fn().mockImplementation(async (url: string, init: any) => {
       capturedUrl = url;
       capturedBody = JSON.parse(init.body);
       capturedHeaders = init.headers;
-      return {
-        ok: true,
-        json: async () => ({
-          candidates: [
-            {
-              content: {
-                parts: [{ text: 'Executive Summary: Q4 revenue +15% over target.' }]
-              }
-            }
-          ]
-        })
-      };
+      return createStreamResponse(['Executive Summary: ', '**+15% revenue gain**']);
     });
 
     // Step A: Trigger summarize quick action
     const actionResult = await handleQuickAction('summarize');
     expect(actionResult.success).toBe(true);
-    expect(actionResult.text).toBe('Executive Summary: Q4 revenue +15% over target.');
+    expect(actionResult.text).toBe('Executive Summary: **+15% revenue gain**');
 
-    // Verify correct up-to-date Gemini model and exact prompt fidelity
-    expect(capturedUrl).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent');
+    // Verify correct up-to-date Gemini model and streaming endpoint
+    expect(capturedUrl).toContain('models/gemini-3.8-flash:streamGenerateContent?alt=sse');
     expect(capturedHeaders['x-goog-api-key']).toBe('AIzaSyTestKeyVerified');
     expect(capturedBody.contents[0].parts[0].text).toContain(docSelectionText);
 
-    // Step B: Replace selection in document
-    await wordService.replaceSelectedText(actionResult.text!);
-    expect(lastReplacedText).toBe('Executive Summary: Q4 revenue +15% over target.');
-    expect(docSelectionText).toBe('Executive Summary: Q4 revenue +15% over target.');
+    // Step B: Replace selection in document with markdown
+    await wordService.replaceSelectedMarkdown(actionResult.text!);
+    expect(lastReplacedHtml).toBe('Executive Summary: **+15% revenue gain**');
   });
 
-  it('runs complete Custom Prompt cycle: Verbatim Prompt -> Generate -> Insert at cursor', async () => {
-    const verbatimUserPrompt = 'Draft a concluding paragraph thanking the engineering team for their commitment.';
-    let capturedPrompt = '';
+  it('runs complete Custom Prompt cycle: Multi-turn Chat -> Stream -> Insert Markdown at cursor', async () => {
+    const userPrompt = 'Draft a conclusion thanking the engineering team for their commitment.';
+    let capturedBody: any = null;
 
     globalThis.fetch = vi.fn().mockImplementation(async (_url: string, init: any) => {
-      const body = JSON.parse(init.body);
-      capturedPrompt = body.contents[0].parts[0].text;
-      return {
-        ok: true,
-        json: async () => ({
-          candidates: [
-            {
-              content: {
-                parts: [{ text: 'We extend our sincere gratitude to the engineering team...' }]
-              }
-            }
-          ]
-        })
-      };
+      capturedBody = JSON.parse(init.body);
+      return createStreamResponse(['We sincerely thank the **engineering team** for their dedication.']);
     });
 
     // Step A: Custom prompt
-    const result = await handleCustomPrompt(verbatimUserPrompt);
+    const result = await handleCustomPrompt(userPrompt);
     expect(result.success).toBe(true);
-    expect(capturedPrompt).toBe(verbatimUserPrompt); // Zero alteration of user prompt
+    expect(capturedBody.contents[0].parts[0].text).toBe(userPrompt); // Zero alteration
 
-    // Step B: Insert at cursor
-    await wordService.insertTextAtCursor(result.text!);
-    expect(docInsertedText).toBe('We extend our sincere gratitude to the engineering team...');
+    // Step B: Insert markdown at cursor
+    await wordService.insertMarkdownAtCursor(result.text!);
+    expect(docInsertedHtml).toBe('We sincerely thank the **engineering team** for their dedication.');
   });
 });

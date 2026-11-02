@@ -4,6 +4,8 @@ import {
   getDocumentBodyText,
   replaceSelectedText,
   insertTextAtCursor,
+  replaceSelectedMarkdown,
+  insertMarkdownAtCursor,
   isOfficeInitialized
 } from '../../src/services/wordService';
 
@@ -18,13 +20,15 @@ describe('Word Document Interop Service', () => {
     mockSelection = {
       text: 'Selected text from Word',
       load: vi.fn(),
-      insertText: vi.fn()
+      insertText: vi.fn(),
+      insertHtml: vi.fn()
     };
 
     mockBody = {
       text: 'Full document body text',
       load: vi.fn(),
-      insertText: vi.fn()
+      insertText: vi.fn(),
+      insertHtml: vi.fn()
     };
 
     mockContext = {
@@ -86,6 +90,23 @@ describe('Word Document Interop Service', () => {
   it('inserts text at cursor position (after current selection)', async () => {
     await insertTextAtCursor('Appended content');
     expect(mockSelection.insertText).toHaveBeenCalledWith('Appended content', 'After');
+    expect(mockContext.sync).toHaveBeenCalled();
+  });
+
+  it('converts markdown to native Word HTML on replaceSelectedMarkdown', async () => {
+    await replaceSelectedMarkdown('**Bold Heading**\n- Item 1');
+    expect(mockSelection.insertHtml).toHaveBeenCalled();
+    const htmlArg = mockSelection.insertHtml.mock.calls[0][0];
+    expect(htmlArg).toContain('<strong>Bold Heading</strong>');
+    expect(htmlArg).toContain('<li>Item 1</li>');
+    expect(mockContext.sync).toHaveBeenCalled();
+  });
+
+  it('converts markdown to native Word HTML on insertMarkdownAtCursor', async () => {
+    await insertMarkdownAtCursor('*Italic note*');
+    expect(mockSelection.insertHtml).toHaveBeenCalled();
+    const htmlArg = mockSelection.insertHtml.mock.calls[0][0];
+    expect(htmlArg).toContain('<em>Italic note</em>');
     expect(mockContext.sync).toHaveBeenCalled();
   });
 

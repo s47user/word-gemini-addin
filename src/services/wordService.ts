@@ -1,3 +1,5 @@
+import { marked } from 'marked';
+
 /**
  * Word Document Interop Service using Office.js (WordApi 1.3+)
  */
@@ -48,7 +50,7 @@ export async function getDocumentBodyText(): Promise<string> {
 }
 
 /**
- * Replaces the currently highlighted selection in Word with new text.
+ * Replaces the currently highlighted selection in Word with plain text.
  */
 export async function replaceSelectedText(newText: string): Promise<void> {
   if (typeof (globalThis as any).Word === 'undefined') {
@@ -68,7 +70,7 @@ export async function replaceSelectedText(newText: string): Promise<void> {
 }
 
 /**
- * Inserts new text at the current cursor position (immediately after the selection).
+ * Inserts plain text at the current cursor position (immediately after the selection).
  */
 export async function insertTextAtCursor(newText: string): Promise<void> {
   if (typeof (globalThis as any).Word === 'undefined') {
@@ -84,5 +86,58 @@ export async function insertTextAtCursor(newText: string): Promise<void> {
     });
   } catch (err: any) {
     throw new Error(`Failed to insert text at cursor: ${err.message || 'Unknown Word error'}`);
+  }
+}
+
+/**
+ * Converts Markdown from Gemini into native Word HTML and replaces the selection.
+ * Preserves bold, italic, headings, lists, and tables as native Word formatting.
+ */
+export async function replaceSelectedMarkdown(markdownText: string): Promise<void> {
+  if (typeof (globalThis as any).Word === 'undefined') {
+    throw new Error('Microsoft Word environment not detected. Please run this inside Word.');
+  }
+
+  const html = marked.parse(markdownText, { async: false }) as string;
+
+  try {
+    await (globalThis as any).Word.run(async (context: any) => {
+      const selection = context.document.getSelection();
+      const insertLocation = (globalThis as any).Word?.InsertLocation?.replace || 'Replace';
+      if (typeof selection.insertHtml === 'function') {
+        selection.insertHtml(html, insertLocation);
+      } else {
+        selection.insertText(markdownText, insertLocation);
+      }
+      await context.sync();
+    });
+  } catch (err: any) {
+    throw new Error(`Failed to replace selected markdown: ${err.message || 'Unknown Word error'}`);
+  }
+}
+
+/**
+ * Converts Markdown from Gemini into native Word HTML and inserts it at the cursor position.
+ */
+export async function insertMarkdownAtCursor(markdownText: string): Promise<void> {
+  if (typeof (globalThis as any).Word === 'undefined') {
+    throw new Error('Microsoft Word environment not detected. Please run this inside Word.');
+  }
+
+  const html = marked.parse(markdownText, { async: false }) as string;
+
+  try {
+    await (globalThis as any).Word.run(async (context: any) => {
+      const selection = context.document.getSelection();
+      const insertLocation = (globalThis as any).Word?.InsertLocation?.after || 'After';
+      if (typeof selection.insertHtml === 'function') {
+        selection.insertHtml(html, insertLocation);
+      } else {
+        selection.insertText(markdownText, insertLocation);
+      }
+      await context.sync();
+    });
+  } catch (err: any) {
+    throw new Error(`Failed to insert markdown at cursor: ${err.message || 'Unknown Word error'}`);
   }
 }
