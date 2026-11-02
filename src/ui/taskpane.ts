@@ -12,6 +12,8 @@ import {
   isOfficeInitialized
 } from '../services/wordService';
 
+export { isOfficeInitialized };
+
 export interface ActionResult {
   success: boolean;
   text?: string;
