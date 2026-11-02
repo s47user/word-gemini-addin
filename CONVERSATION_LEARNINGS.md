@@ -57,3 +57,10 @@
   4. Taskpane UI Components & Quick Actions (modern sidebar layout, action pills, response preview, settings drawer).
   5. End-to-End Verification, Sideloading Scripts & Documentation.
 * Updated `antigravity-memory` pipeline stage.
+
+### 6. Senior Code Review & Final Hardening Completed
+* **Security & Header Isolation:** Migrated Gemini API authentication from URL query parameter to the standard `x-goog-api-key` header to prevent leaking keys in logs or Referer headers.
+* **XSS / Markup Injection Prevention:** Switched API key population in the settings modal from template string interpolation to direct DOM property assignment (`apiKeyInput.value`).
+* **Static Assets:** Created required Office Add-in icon assets (`icon-16.png`, `icon-32.png`, `icon-64.png`, `icon-80.png`) and `help.html` in `public/assets/` to satisfy Office manifest validators.
+* **Resilience:** Wrapped `localStorage` access in `try...catch` blocks for sandboxed iframe contexts and added defensive fallback for `Word.InsertLocation` enums.
+* **Verification:** Full test suite (17/17 tests passing) and production bundle build verified clean.
