@@ -12,7 +12,7 @@ describe('Office Add-in Manifest and Config Verification', () => {
     const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
     expect(manifestContent).toContain('xsi:type="TaskpaneApp"');
     expect(manifestContent).toContain('<Host Name="Document"/>');
-    expect(manifestContent).toContain('https://localhost:3000/index.html');
+    expect(manifestContent).toContain('https://s47user.github.io/word-gemini-addin/index.html');
     expect(manifestContent).toContain('Gemini AI Word Assistant');
   });
 

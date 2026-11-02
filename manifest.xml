@@ -12,12 +12,12 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Gemini AI Word Assistant"/>
   <Description DefaultValue="Direct Google Gemini integration for writing, summarizing, polishing, and generating content inside Microsoft Word."/>
-  <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png"/>
-  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-64.png"/>
-  <SupportUrl DefaultValue="https://localhost:3000/help.html"/>
+  <IconUrl DefaultValue="https://s47user.github.io/word-gemini-addin/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://s47user.github.io/word-gemini-addin/assets/icon-64.png"/>
+  <SupportUrl DefaultValue="https://s47user.github.io/word-gemini-addin/help.html"/>
   
   <AppDomains>
-    <AppDomain>https://localhost:3000</AppDomain>
+    <AppDomain>https://s47user.github.io</AppDomain>
     <AppDomain>https://generativelanguage.googleapis.com</AppDomain>
   </AppDomains>
 
@@ -26,7 +26,7 @@
   </Hosts>
 
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://localhost:3000/index.html"/>
+    <SourceLocation DefaultValue="https://s47user.github.io/word-gemini-addin/index.html"/>
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
@@ -70,12 +70,12 @@
 
     <Resources>
       <bt:Images>
-        <bt:Image id="residIcon16" DefaultValue="https://localhost:3000/assets/icon-16.png"/>
-        <bt:Image id="residIcon32" DefaultValue="https://localhost:3000/assets/icon-32.png"/>
-        <bt:Image id="residIcon80" DefaultValue="https://localhost:3000/assets/icon-80.png"/>
+        <bt:Image id="residIcon16" DefaultValue="https://s47user.github.io/word-gemini-addin/assets/icon-16.png"/>
+        <bt:Image id="residIcon32" DefaultValue="https://s47user.github.io/word-gemini-addin/assets/icon-32.png"/>
+        <bt:Image id="residIcon80" DefaultValue="https://s47user.github.io/word-gemini-addin/assets/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="residTaskpaneUrl" DefaultValue="https://localhost:3000/index.html"/>
+        <bt:Url id="residTaskpaneUrl" DefaultValue="https://s47user.github.io/word-gemini-addin/index.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="residGeminiGroupLabel" DefaultValue="Gemini AI"/>
