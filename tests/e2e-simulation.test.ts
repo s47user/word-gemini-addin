@@ -52,9 +52,12 @@ describe('End-to-End Simulation: Full Word Add-in Flow', () => {
     let capturedUrl = '';
     let capturedBody: any = null;
 
+    let capturedHeaders: any = null;
+
     globalThis.fetch = vi.fn().mockImplementation(async (url: string, init: any) => {
       capturedUrl = url;
       capturedBody = JSON.parse(init.body);
+      capturedHeaders = init.headers;
       return {
         ok: true,
         json: async () => ({
@@ -75,7 +78,8 @@ describe('End-to-End Simulation: Full Word Add-in Flow', () => {
     expect(actionResult.text).toBe('Executive Summary: Q4 revenue +15% over target.');
 
     // Verify correct up-to-date Gemini model and exact prompt fidelity
-    expect(capturedUrl).toContain('models/gemini-3.8-flash:generateContent');
+    expect(capturedUrl).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent');
+    expect(capturedHeaders['x-goog-api-key']).toBe('AIzaSyTestKeyVerified');
     expect(capturedBody.contents[0].parts[0].text).toContain(docSelectionText);
 
     // Step B: Replace selection in document

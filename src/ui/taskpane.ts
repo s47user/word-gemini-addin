@@ -144,7 +144,7 @@ export function initializeTaskpaneUI(container: HTMLElement): void {
         <div class="modal-title">Gemini API Settings</div>
         <div class="form-group">
           <label for="input-api-key">Gemini API Key</label>
-          <input type="password" id="input-api-key" placeholder="AIzaSy..." value="${currentConfig.apiKey || ''}" />
+          <input type="password" id="input-api-key" placeholder="AIzaSy..." />
         </div>
         <div class="form-group">
           <label for="select-model">Model Selection</label>
@@ -173,6 +173,10 @@ export function initializeTaskpaneUI(container: HTMLElement): void {
   const saveSettingsBtn = container.querySelector('#btn-save-settings') as HTMLButtonElement;
   const apiKeyInput = container.querySelector('#input-api-key') as HTMLInputElement;
   const modelSelect = container.querySelector('#select-model') as HTMLSelectElement;
+
+  if (apiKeyInput) {
+    apiKeyInput.value = currentConfig.apiKey || '';
+  }
 
   function showStatus(msg: string, type: 'error' | 'success' | 'info') {
     if (!statusBanner) return;
@@ -260,8 +264,14 @@ export function initializeTaskpaneUI(container: HTMLElement): void {
       showStatus('No text to copy.', 'info');
       return;
     }
-    navigator.clipboard?.writeText(lastGeneratedText);
-    showStatus('Copied to clipboard!', 'success');
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(lastGeneratedText)
+        .then(() => showStatus('Copied to clipboard!', 'success'))
+        .catch(err => showStatus(`Failed to copy: ${err.message}`, 'error'));
+    } else {
+      showStatus('Clipboard API not supported in this environment.', 'error');
+    }
   });
 
   // Settings modal

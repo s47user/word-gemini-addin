@@ -16,15 +16,29 @@ const STORAGE_KEY_API_KEY = 'gemini_word_api_key';
 const STORAGE_KEY_MODEL = 'gemini_word_model';
 
 export function getStoredConfig(): GeminiConfig {
-  const apiKey = (typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY_API_KEY) : null) || '';
-  const model = (typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY_MODEL) : null) || DEFAULT_MODEL;
+  let apiKey = '';
+  let model = DEFAULT_MODEL;
+
+  try {
+    if (typeof localStorage !== 'undefined') {
+      apiKey = localStorage.getItem(STORAGE_KEY_API_KEY) || '';
+      model = localStorage.getItem(STORAGE_KEY_MODEL) || DEFAULT_MODEL;
+    }
+  } catch {
+    // Sandboxed iframes without storage permission fall back to defaults
+  }
+
   return { apiKey, model };
 }
 
 export function saveConfig(config: GeminiConfig): void {
-  if (typeof localStorage !== 'undefined') {
-    localStorage.setItem(STORAGE_KEY_API_KEY, config.apiKey.trim());
-    localStorage.setItem(STORAGE_KEY_MODEL, config.model || DEFAULT_MODEL);
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY_API_KEY, config.apiKey.trim());
+      localStorage.setItem(STORAGE_KEY_MODEL, config.model || DEFAULT_MODEL);
+    }
+  } catch {
+    // Sandboxed iframes
   }
 }
 
@@ -32,6 +46,7 @@ export function saveConfig(config: GeminiConfig): void {
  * Calls the Google Gemini REST API.
  * CRITICAL RULE: The prompt argument must NEVER be edited, trimmed destructively,
  * or summarized. It must be passed verbatim to preserve user voice and instructions.
+ * Security: Uses the official x-goog-api-key header instead of a query parameter.
  */
 export async function generateContent(
   config: GeminiConfig,
@@ -43,9 +58,7 @@ export async function generateContent(
   }
 
   const model = config.model || DEFAULT_MODEL;
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
-    config.apiKey
-  )}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
   const requestBody: any = {
     contents: [
@@ -75,7 +88,8 @@ export async function generateContent(
     response = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'x-goog-api-key': config.apiKey.trim()
       },
       body: JSON.stringify(requestBody)
     });

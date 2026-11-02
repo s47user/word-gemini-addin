@@ -58,7 +58,7 @@ export async function replaceSelectedText(newText: string): Promise<void> {
   try {
     await (globalThis as any).Word.run(async (context: any) => {
       const selection = context.document.getSelection();
-      const insertLocation = (globalThis as any).Word.InsertLocation.replace;
+      const insertLocation = (globalThis as any).Word?.InsertLocation?.replace || 'Replace';
       selection.insertText(newText, insertLocation);
       await context.sync();
     });
@@ -78,7 +78,7 @@ export async function insertTextAtCursor(newText: string): Promise<void> {
   try {
     await (globalThis as any).Word.run(async (context: any) => {
       const selection = context.document.getSelection();
-      const insertLocation = (globalThis as any).Word.InsertLocation.after;
+      const insertLocation = (globalThis as any).Word?.InsertLocation?.after || 'After';
       selection.insertText(newText, insertLocation);
       await context.sync();
     });

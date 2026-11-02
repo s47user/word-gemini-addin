@@ -56,9 +56,12 @@ describe('Gemini API Service', () => {
     let interceptedUrl = '';
     let interceptedBody: any = null;
 
+    let interceptedHeaders: any = null;
+
     globalThis.fetch = vi.fn().mockImplementation(async (url: string, init: any) => {
       interceptedUrl = url;
       interceptedBody = JSON.parse(init.body);
+      interceptedHeaders = init.headers;
       return {
         ok: true,
         json: async () => ({
@@ -80,7 +83,8 @@ describe('Gemini API Service', () => {
     );
 
     expect(result).toBe('Response from Gemini 3.8 Flash');
-    expect(interceptedUrl).toContain('models/gemini-3.8-flash:generateContent?key=test-key');
+    expect(interceptedUrl).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent');
+    expect(interceptedHeaders['x-goog-api-key']).toBe('test-key');
     // Verbatim prompt fidelity: parts[0].text matches rawUserPrompt exactly
     expect(interceptedBody.contents[0].parts[0].text).toBe(rawUserPrompt);
     expect(interceptedBody.systemInstruction.parts[0].text).toBe('You are a helpful writing assistant.');
