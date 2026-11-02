@@ -70,3 +70,26 @@
 * **Developer Registry Registration:** Automated direct registration of `manifest.xml` into `HKCU:\Software\Microsoft\Office\16.0\WEF\Developer\d24f7e1b-9e4a-4a25-8664-9b8849cfa320`.
 * **Server Activation:** Active background HTTPS dev server listening on `https://localhost:3000/`.
 * **Application Boot:** Launched local Microsoft Word Desktop instance with Developer Add-in loaded.
+
+### 8. All 5 Real-World Friction Points Resolved
+1. **SSL Certificate Trust for Edge WebView2:**
+   - Configured `vite.config.ts` to consume official Office dev certs (`localhost.crt`, `localhost.key`) from `~/.office-addin-dev-certs`.
+   - Created `scripts/trust-dev-cert.ps1` to trust the Root CA in Windows CurrentUser Certificate Store.
+2. **Markdown to Native Word Formatting:**
+   - Integrated `marked` parser into `wordService.ts`.
+   - Replaced plain text insertion with `replaceSelectedMarkdown` and `insertMarkdownAtCursor` using WordApi `insertHtml` so bold headings, bulleted lists, and tables render with native Word typography instead of raw asterisks.
+3. **Streaming Typewriter Effect:**
+   - Implemented `streamGenerateContent` utilizing Server-Sent Events (`alt=sse`) from Gemini REST endpoint.
+   - Text streams live into the taskpane preview card as tokens arrive.
+4. **Multi-turn Conversational Chat Context:**
+   - Added rolling `chatHistory: ChatMessage[]` so follow-up prompts ("make that shorter", "add bullet points") retain full conversational memory.
+   - Added `🗑️ Clear Chat` button to easily reset conversational history.
+5. **Server Persistence & 1-Click Desktop Launcher:**
+   - Created `Start-Gemini-Word.bat` on the user's Desktop (`C:\Users\LENOVO\Desktop\Start-Gemini-Word.bat`) and project root.
+   - 1-click startup automatically validates the Windows Office Developer registry, launches the background server, and opens Microsoft Word Desktop.
+* **Testing:** 21/21 tests passing across 5 test suites.
+
+### 9. Forensic Analysis of QuillBot vs Local Developer Add-in
+* **Why QuillBot Needs No BAT File:** Inspected user's local WEF cache (`C:\Users\LENOVO\AppData\Local\Microsoft\Office\16.0\Wef\AppCommands\18.0\...\wa20000036818.0Worden-US`). QuillBot is an Office Store Web Add-in pulling directly from `https://word.quillbot.com/index.html`. Because its web files live 24/7 in the cloud with a public DigiCert SSL certificate, Word loads it automatically on startup without any local server running.
+* **Why the Local Gemini Add-in Needed a BAT File:** Our setup was running in local developer mode (`https://localhost:3000`). If no local web server is running on port 3000, Word cannot load the iframe.
+* **Solution to Make Gemini Exact Match to QuillBot:** Deploy the compiled `dist/` bundle to a free cloud host (GitHub Pages via `s47user.github.io/word-gemini-addin` or Vercel). Once the manifest points to that cloud URL, Word will load the Gemini tab automatically without ever running a `.bat` file or local server.

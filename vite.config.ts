@@ -11,6 +11,7 @@ const keyFile = path.join(certDir, 'localhost.key');
 const hasOfficeCerts = fs.existsSync(certFile) && fs.existsSync(keyFile);
 
 export default defineConfig({
+  base: '/word-gemini-addin/',
   plugins: hasOfficeCerts ? [] : [basicSsl()],
   server: {
     port: 3000,
